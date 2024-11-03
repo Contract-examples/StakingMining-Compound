@@ -2,13 +2,11 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@solady/utils/SafeTransferLib.sol";
 
 contract StakingMining is ReentrancyGuard, Ownable {
-    using SafeERC20 for IERC20;
-
     // custom errors
     error InvalidAmount();
     error InvalidLockIndex();
@@ -65,7 +63,7 @@ contract StakingMining is ReentrancyGuard, Ownable {
         }
 
         // transfer RNT from user to this contract (need approve first)
-        rnt.safeTransferFrom(msg.sender, address(this), amount);
+        SafeTransferLib.safeTransferFrom(address(rnt), msg.sender, address(this), amount);
 
         // update staked amount
         info.stakedAmount += amount;
@@ -82,7 +80,7 @@ contract StakingMining is ReentrancyGuard, Ownable {
         _claimReward();
 
         // transfer RNT from this contract to user
-        rnt.safeTransfer(msg.sender, amount);
+        SafeTransferLib.safeTransfer(address(rnt), msg.sender, amount);
 
         // update staked amount
         info.stakedAmount -= amount;
@@ -132,8 +130,11 @@ contract StakingMining is ReentrancyGuard, Ownable {
             unlockedAmount = (totalAmount * timePassed) / LOCK_PERIOD;
         }
 
-        lock.amount = 0; // clear the lock record first to prevent reentrancy
-        rnt.safeTransfer(msg.sender, unlockedAmount);
+        // transfer RNT from this contract to user
+        SafeTransferLib.safeTransfer(address(rnt), msg.sender, unlockedAmount);
+
+        // clear the lock record first to prevent reentrancy
+        lock.amount = 0;
 
         emit EsRNTConverted(msg.sender, totalAmount, unlockedAmount);
     }
