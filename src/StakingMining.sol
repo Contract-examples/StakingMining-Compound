@@ -99,11 +99,14 @@ contract StakingMining is ReentrancyGuard, Ownable {
         if (info.stakedAmount == 0) return;
 
         uint256 pendingTime = block.timestamp - info.lastRewardTime;
+        // avoid duplicate rewards in the same block
+        if (pendingTime == 0) return;
 
-        // 1 RNT = 1 esRNT
-        uint256 reward = info.stakedAmount;
+        // calculate reward based on staked amount and time
+        // daily reward rate = DAILY_REWARD_RATE (1e18 = 100%)
+        uint256 reward = (info.stakedAmount * pendingTime * DAILY_REWARD_RATE) / (1 days * 1e18);
 
-        if (reward > 0) {
+        if (reward != 0) {
             lockInfos[msg.sender].push(LockInfo({ amount: reward, lockTime: block.timestamp }));
 
             info.lastRewardTime = block.timestamp;
