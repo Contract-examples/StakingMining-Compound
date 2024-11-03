@@ -98,8 +98,12 @@ contract StakingMining is ReentrancyGuard, Ownable {
     // internal function: calculate and distribute reward
     function _claimReward() internal {
         StakeInfo storage info = stakeInfos[msg.sender];
+        if (info.stakedAmount == 0) return;
+
         uint256 pendingTime = block.timestamp - info.lastRewardTime;
-        uint256 reward = (info.stakedAmount * pendingTime * DAILY_REWARD_RATE) / 1 days;
+
+        // 1 RNT = 1 esRNT
+        uint256 reward = info.stakedAmount;
 
         if (reward > 0) {
             lockInfos[msg.sender].push(LockInfo({ amount: reward, lockTime: block.timestamp }));
@@ -128,9 +132,8 @@ contract StakingMining is ReentrancyGuard, Ownable {
             unlockedAmount = (totalAmount * timePassed) / LOCK_PERIOD;
         }
 
+        lock.amount = 0; // clear the lock record first to prevent reentrancy
         rnt.safeTransfer(msg.sender, unlockedAmount);
-
-        lock.amount = 0; // clear the lock record
 
         emit EsRNTConverted(msg.sender, totalAmount, unlockedAmount);
     }
@@ -138,8 +141,10 @@ contract StakingMining is ReentrancyGuard, Ownable {
     // view function: pending reward
     function pendingReward(address user) external view returns (uint256) {
         StakeInfo memory info = stakeInfos[user];
-        uint256 pendingTime = block.timestamp - info.lastRewardTime;
-        return (info.stakedAmount * pendingTime * DAILY_REWARD_RATE) / 1 days;
+        if (info.stakedAmount == 0) return 0;
+
+        // 1 RNT = 1 esRNT per day
+        return info.stakedAmount;
     }
 
     // view function: total locked esRNT
