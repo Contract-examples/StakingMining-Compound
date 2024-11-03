@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+// TODO: EIP-2612
 contract RNT is ERC20, Ownable {
     // custom error
     error ExceedsMaxSupply(uint256 maxSupply, uint256 currentSupply, uint256 mintAmount);

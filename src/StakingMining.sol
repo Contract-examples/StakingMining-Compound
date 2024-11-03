@@ -64,8 +64,11 @@ contract StakingMining is ReentrancyGuard, Ownable {
             _claimReward();
         }
 
-        info.stakedAmount += amount;
+        // transfer RNT from user to this contract (need approve first)
         rnt.safeTransferFrom(msg.sender, address(this), amount);
+
+        // update staked amount
+        info.stakedAmount += amount;
 
         emit Staked(msg.sender, amount);
     }
@@ -78,8 +81,11 @@ contract StakingMining is ReentrancyGuard, Ownable {
         // claim the reward first
         _claimReward();
 
-        info.stakedAmount -= amount;
+        // transfer RNT from this contract to user
         rnt.safeTransfer(msg.sender, amount);
+
+        // update staked amount
+        info.stakedAmount -= amount;
 
         emit Withdrawn(msg.sender, amount);
     }
@@ -122,8 +128,9 @@ contract StakingMining is ReentrancyGuard, Ownable {
             unlockedAmount = (totalAmount * timePassed) / LOCK_PERIOD;
         }
 
-        lock.amount = 0; // clear the lock record
         rnt.safeTransfer(msg.sender, unlockedAmount);
+
+        lock.amount = 0; // clear the lock record
 
         emit EsRNTConverted(msg.sender, totalAmount, unlockedAmount);
     }
