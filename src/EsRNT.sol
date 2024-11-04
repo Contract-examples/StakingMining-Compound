@@ -121,17 +121,17 @@ contract EsRNT is ReentrancyGuard, ERC20, Ownable, Initializable {
         return lockInfos[user];
     }
 
-    // disable transfer
+    // disable transfer -> this means the token is not tradable
     function transfer(address, uint256) public virtual override returns (bool) {
         revert TransferNotAllowed();
     }
 
-    // disable transferFrom
+    // disable transferFrom -> this means the token is not tradable
     function transferFrom(address, address, uint256) public virtual override returns (bool) {
         revert TransferNotAllowed();
     }
 
-    // disable approve
+    // disable approve -> this means the token is not tradable
     function approve(address, uint256) public virtual override returns (bool) {
         revert TransferNotAllowed();
     }
