@@ -14,7 +14,8 @@ contract EsRNT is ReentrancyGuard, ERC20, Ownable, Initializable {
     error InvalidToken();
     error InvalidLockIndex();
     error NoLockedTokens();
-    error ZeroAddress();
+    error TransferNotAllowed();
+    error ApprovalNotAllowed();
 
     // events
     event Initialized(address stakingToken, uint256 lockPeriod, address owner);
@@ -118,5 +119,20 @@ contract EsRNT is ReentrancyGuard, ERC20, Ownable, Initializable {
     // view function: get user lock info
     function getLockInfo(address user) external view returns (LockInfo[] memory) {
         return lockInfos[user];
+    }
+
+    // disable transfer
+    function transfer(address, uint256) public virtual override returns (bool) {
+        revert TransferNotAllowed();
+    }
+
+    // disable transferFrom
+    function transferFrom(address, address, uint256) public virtual override returns (bool) {
+        revert TransferNotAllowed();
+    }
+
+    // disable approve
+    function approve(address, uint256) public virtual override returns (bool) {
+        revert TransferNotAllowed();
     }
 }
