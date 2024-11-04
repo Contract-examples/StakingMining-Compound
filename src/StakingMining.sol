@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import "@solady/utils/SafeTransferLib.sol";
 import "./interfaces/IStakingToken.sol";
 import "./interfaces/IEsToken.sol";
@@ -16,6 +17,7 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
     error NoLockedTokens();
     error InvalidRewardRate();
     error InvalidToken();
+    error InsufficientAllowance();
 
     // events
     event StakingInitialized(address indexed stakingToken, address indexed esToken, uint256 rewardRate);
@@ -29,6 +31,7 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
 
     // tokens
     IStakingToken public stakingToken;
+    IERC20Permit public stakingTokenPermit;
     IEsToken public esToken;
 
     // stake info
@@ -48,6 +51,10 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
         if (_rewardRate == 0) revert InvalidRewardRate();
 
         stakingToken = IStakingToken(_stakingToken);
+        if (_isPermitSupported(_stakingToken)) {
+            stakingTokenPermit = IERC20Permit(_stakingToken);
+        }
+
         esToken = IEsToken(_esToken);
         rewardRate = _rewardRate;
 
@@ -79,7 +86,17 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
     }
 
     // stake RNT
-    function stake(uint256 amount) external nonReentrant whenNotPaused {
+    function stake(
+        uint256 amount,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    )
+        external
+        nonReentrant
+        whenNotPaused
+    {
         if (amount == 0) revert CannotStakeZero();
 
         StakeInfo storage info = stakeInfos[msg.sender];
@@ -90,6 +107,12 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
             _claimReward();
         }
 
+        // support permit
+        if (stakingTokenPermit != IERC20Permit(address(0)) && deadline != 0) {
+            stakingTokenPermit.permit(msg.sender, address(this), amount, deadline, v, r, s);
+        }
+
+        // transfer from user to this
         SafeTransferLib.safeTransferFrom(address(stakingToken), msg.sender, address(this), amount);
 
         unchecked {
@@ -157,6 +180,28 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
                 info.lastRewardTime = currentTime;
                 emit RewardClaimed(msg.sender, reward);
             }
+        }
+    }
+
+    // this is a helper function to check if the recipient is a contract
+    function _isContract(address account) internal view returns (bool) {
+        // if the code size is greater than 0, then the account is a contract
+        uint256 size;
+        assembly {
+            size := extcodesize(account)
+        }
+        return size > 0;
+    }
+
+    // check if the token supports permit
+    function _isPermitSupported(address _token) internal view returns (bool) {
+        if (!_isContract(_token)) {
+            return false;
+        }
+        try IERC20Permit(_token).DOMAIN_SEPARATOR() returns (bytes32) {
+            return true;
+        } catch {
+            return false;
         }
     }
 

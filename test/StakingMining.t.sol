@@ -56,7 +56,7 @@ contract StakingMiningTest is Test {
         // approve and stake
         vm.startPrank(user1);
         rnt.approve(address(stakingMining), stakeAmount);
-        stakingMining.stake(stakeAmount);
+        stakingMining.stake(stakeAmount, 0, 0, bytes32(0), bytes32(0));
 
         // verify stake status
         (uint256 stakedAmount,) = stakingMining.stakeInfos(user1);
@@ -68,7 +68,7 @@ contract StakingMiningTest is Test {
     function test_StakeZeroAmount() public {
         vm.prank(user1);
         vm.expectRevert(StakingMining.CannotStakeZero.selector);
-        stakingMining.stake(0);
+        stakingMining.stake(0, 0, 0, bytes32(0), bytes32(0));
     }
 
     function test_Unstake() public {
@@ -77,7 +77,7 @@ contract StakingMiningTest is Test {
         // stake
         vm.startPrank(user1);
         rnt.approve(address(stakingMining), stakeAmount);
-        stakingMining.stake(stakeAmount);
+        stakingMining.stake(stakeAmount, 0, 0, bytes32(0), bytes32(0));
 
         // unstake partial
         uint256 unstakeAmount = 400 * 1e18;
@@ -96,7 +96,7 @@ contract StakingMiningTest is Test {
         // stake
         vm.startPrank(user1);
         rnt.approve(address(stakingMining), stakeAmount);
-        stakingMining.stake(stakeAmount);
+        stakingMining.stake(stakeAmount, 0, 0, bytes32(0), bytes32(0));
 
         // try to unstake more than staked amount
         vm.expectRevert(StakingMining.InvalidAmount.selector);
@@ -110,7 +110,7 @@ contract StakingMiningTest is Test {
         // stake
         vm.startPrank(user1);
         rnt.approve(address(stakingMining), stakeAmount);
-        stakingMining.stake(stakeAmount);
+        stakingMining.stake(stakeAmount, 0, 0, bytes32(0), bytes32(0));
 
         // skip 1 day
         skip(1 days);
@@ -127,7 +127,7 @@ contract StakingMiningTest is Test {
         // stake
         vm.startPrank(user1);
         rnt.approve(address(stakingMining), stakeAmount);
-        stakingMining.stake(stakeAmount);
+        stakingMining.stake(stakeAmount, 0, 0, bytes32(0), bytes32(0));
 
         // skip 1 day
         skip(1 days);
@@ -147,7 +147,7 @@ contract StakingMiningTest is Test {
         // stake
         vm.startPrank(user1);
         rnt.approve(address(stakingMining), stakeAmount);
-        stakingMining.stake(stakeAmount);
+        stakingMining.stake(stakeAmount, 0, 0, bytes32(0), bytes32(0));
 
         // skip 1 day
         skip(1 days);
@@ -167,7 +167,7 @@ contract StakingMiningTest is Test {
         // stake and wait 1 day
         vm.startPrank(user1);
         rnt.approve(address(stakingMining), stakeAmount);
-        stakingMining.stake(stakeAmount);
+        stakingMining.stake(stakeAmount, 0, 0, bytes32(0), bytes32(0));
         skip(1 days);
 
         // claim reward
@@ -194,7 +194,7 @@ contract StakingMiningTest is Test {
         // stake and wait 1 day
         vm.startPrank(user1);
         rnt.approve(address(stakingMining), stakeAmount);
-        stakingMining.stake(stakeAmount);
+        stakingMining.stake(stakeAmount, 0, 0, bytes32(0), bytes32(0));
         skip(1 days);
 
         // claim reward
@@ -216,7 +216,7 @@ contract StakingMiningTest is Test {
 
         vm.startPrank(user1);
         rnt.approve(address(stakingMining), amount);
-        stakingMining.stake(amount);
+        stakingMining.stake(amount, 0, 0, bytes32(0), bytes32(0));
 
         (uint256 stakedAmount,) = stakingMining.stakeInfos(user1);
         assertEq(stakedAmount, amount);
@@ -230,7 +230,7 @@ contract StakingMiningTest is Test {
 
         vm.startPrank(user1);
         rnt.approve(address(stakingMining), stakeAmount);
-        stakingMining.stake(stakeAmount);
+        stakingMining.stake(stakeAmount, 0, 0, bytes32(0), bytes32(0));
 
         stakingMining.unstake(unstakeAmount);
 
