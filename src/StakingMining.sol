@@ -120,7 +120,7 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
         }
     }
 
-    // emergency withdraw
+    // emergency withdraw (when paused)
     function emergencyWithdraw() external nonReentrant whenPaused {
         StakeInfo storage info = stakeInfos[msg.sender];
         uint256 amount = info.stakedAmount;
