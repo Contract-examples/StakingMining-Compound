@@ -19,7 +19,8 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
     // events
     event EsRNTCreated(address indexed esRnt);
     event Staked(address indexed user, uint256 amount);
-    event Withdrawn(address indexed user, uint256 amount);
+    event Unstaked(address indexed user, uint256 amount);
+    event EmergencyWithdrawn(address indexed user, uint256 amount);
     event RewardClaimed(address indexed user, uint256 amount);
     event RewardRateUpdated(uint256 oldRate, uint256 newRate);
 
@@ -100,7 +101,7 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
             info.stakedAmount -= amount;
         }
 
-        emit Withdrawn(msg.sender, amount);
+        emit Unstaked(msg.sender, amount);
     }
 
     // claim esRNT reward
@@ -123,7 +124,7 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
         info.stakedAmount = 0;
         info.lastRewardTime = 0;
 
-        emit Withdrawn(msg.sender, amount);
+        emit EmergencyWithdrawn(msg.sender, amount);
     }
 
     // internal function: calculate and distribute reward
