@@ -13,6 +13,10 @@ contract EsRNT is ReentrancyGuard, ERC20, Ownable {
     error NoLockedTokens();
     error ZeroAddress();
 
+    // events
+    event Locked(address indexed user, uint256 amount, uint256 lockTime);
+    event Converted(address indexed user, uint256 amount, uint256 receivedAmount);
+
     // RNT token
     IERC20 public immutable rnt;
 
@@ -27,10 +31,6 @@ contract EsRNT is ReentrancyGuard, ERC20, Ownable {
 
     // user => locks
     mapping(address => LockInfo[]) public lockInfos;
-
-    // events
-    event Locked(address indexed user, uint256 amount, uint256 lockTime);
-    event Converted(address indexed user, uint256 amount, uint256 receivedAmount);
 
     constructor(address _rnt, uint256 _lockPeriod) ERC20("esRNT", "esRNT") Ownable(msg.sender) {
         if (_rnt == address(0)) revert ZeroAddress();
