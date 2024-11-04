@@ -24,6 +24,7 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
     event EmergencyWithdrawn(address indexed user, uint256 amount);
     event RewardClaimed(address indexed user, uint256 amount);
     event RewardRateUpdated(uint256 oldRate, uint256 newRate);
+    event StakingTokenSet(address indexed stakingToken);
     event EsTokenSet(address indexed esToken);
 
     // tokens
@@ -61,6 +62,13 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
         rewardRate = newRate;
 
         emit RewardRateUpdated(oldRate, newRate);
+    }
+
+    // set staking token
+    function setStakingToken(address _stakingToken) external onlyOwner {
+        if (_stakingToken == address(0)) revert InvalidToken();
+        stakingToken = IStakingToken(_stakingToken);
+        emit StakingTokenSet(_stakingToken);
     }
 
     // set esToken
