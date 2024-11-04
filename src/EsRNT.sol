@@ -13,6 +13,7 @@ contract EsRNT is ReentrancyGuard, ERC20, Ownable, Initializable {
     // custom errors
     error InvalidToken();
     error InvalidLockIndex();
+    error InvalidLockPeriod();
     error NoLockedTokens();
     error TransferNotAllowed();
     error ApprovalNotAllowed();
@@ -43,6 +44,7 @@ contract EsRNT is ReentrancyGuard, ERC20, Ownable, Initializable {
     // initialize
     function initialize(address _stakingToken, uint256 _lockPeriod, address _stakingMining) external initializer {
         if (_stakingToken == address(0) || _stakingMining == address(0)) revert InvalidToken();
+        if (_lockPeriod == 0) revert InvalidLockPeriod();
 
         stakingToken = IERC20(_stakingToken);
         lockPeriod = _lockPeriod;
