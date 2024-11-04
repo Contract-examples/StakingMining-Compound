@@ -4,24 +4,28 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin-upgradeable/contracts/proxy/utils/Initializable.sol";
 import "@solady/utils/SafeTransferLib.sol";
+import "./interfaces/IStakingToken.sol";
 
 // no need for EIP-2612
-contract EsRNT is ReentrancyGuard, ERC20, Ownable {
+contract EsRNT is ReentrancyGuard, ERC20, Ownable, Initializable {
     // custom errors
+    error InvalidToken();
     error InvalidLockIndex();
     error NoLockedTokens();
     error ZeroAddress();
 
     // events
+    event Initialized(address stakingToken, uint256 lockPeriod, address owner);
     event Locked(address indexed user, uint256 amount, uint256 lockTime);
     event Converted(address indexed user, uint256 amount, uint256 receivedAmount);
 
     // RNT token
-    IERC20 public immutable rnt;
+    IStakingToken public stakingToken;
 
     // lock period
-    uint256 public immutable lockPeriod;
+    uint256 public lockPeriod;
 
     // lock info
     struct LockInfo {
@@ -32,10 +36,15 @@ contract EsRNT is ReentrancyGuard, ERC20, Ownable {
     // user => locks
     mapping(address => LockInfo[]) public lockInfos;
 
-    constructor(address _rnt, uint256 _lockPeriod) ERC20("esRNT", "esRNT") Ownable(msg.sender) {
-        if (_rnt == address(0)) revert ZeroAddress();
-        rnt = IERC20(_rnt);
+    constructor() ERC20("esRNT", "esRNT") Ownable(msg.sender) { }
+
+    function initialize(address _stakingToken, uint256 _lockPeriod, address _stakingMining) external initializer {
+        if (_stakingToken == address(0) || _stakingMining == address(0)) revert InvalidToken();
+
+        stakingToken = IStakingToken(_stakingToken);
         lockPeriod = _lockPeriod;
+        _transferOwnership(_stakingMining);
+        emit Initialized(_stakingToken, _lockPeriod, _stakingMining);
     }
 
     // only StakingMining contract can mint esRNT
@@ -81,7 +90,7 @@ contract EsRNT is ReentrancyGuard, ERC20, Ownable {
         _burn(msg.sender, lockedAmount);
 
         // transfer RNT to user
-        SafeTransferLib.safeTransfer(address(rnt), msg.sender, unlockedAmount);
+        SafeTransferLib.safeTransfer(address(stakingToken), msg.sender, unlockedAmount);
 
         // clear lock info
         lock.amount = 0;

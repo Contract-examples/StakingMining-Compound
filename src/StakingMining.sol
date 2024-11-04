@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@solady/utils/SafeTransferLib.sol";
-import "./EsRNT.sol";
+import "./interfaces/IStakingToken.sol";
+import "./interfaces/IEsToken.sol";
 
 contract StakingMining is ReentrancyGuard, Ownable, Pausable {
     // custom errors
@@ -15,39 +15,42 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
     error CannotStakeZero();
     error NoLockedTokens();
     error InvalidRewardRate();
+    error InvalidToken();
 
     // events
-    event EsRNTCreated(address indexed esRnt);
+    event StakingInitialized(address indexed stakingToken, address indexed esToken, uint256 rewardRate);
     event Staked(address indexed user, uint256 amount);
     event Unstaked(address indexed user, uint256 amount);
     event EmergencyWithdrawn(address indexed user, uint256 amount);
     event RewardClaimed(address indexed user, uint256 amount);
     event RewardRateUpdated(uint256 oldRate, uint256 newRate);
+    event EsTokenSet(address indexed esToken);
 
-    // RNT token
-    IERC20 public immutable rnt;
-    EsRNT public immutable esRnt;
+    // tokens
+    IStakingToken public stakingToken;
+    IEsToken public esToken;
 
     // stake info
     struct StakeInfo {
-        uint256 stakedAmount; // staked amount
-        uint256 lastRewardTime; // last reward time
+        uint256 stakedAmount;
+        uint256 lastRewardTime;
     }
 
     // user stake info
     mapping(address => StakeInfo) public stakeInfos;
 
-    // daily reward rate 1RNT = 1esRNT (default=1e18)
+    // daily reward rate (default=1e18)
     uint256 public rewardRate;
 
-    constructor(address _rnt, uint256 _lockPeriod, uint256 _rewardRate) Ownable(msg.sender) {
+    constructor(address _stakingToken, address _esToken, uint256 _rewardRate) Ownable(msg.sender) {
+        if (_stakingToken == address(0) || _esToken == address(0)) revert InvalidToken();
         if (_rewardRate == 0) revert InvalidRewardRate();
 
-        rnt = IERC20(_rnt);
-        esRnt = new EsRNT(_rnt, _lockPeriod);
+        stakingToken = IStakingToken(_stakingToken);
+        esToken = IEsToken(_esToken);
         rewardRate = _rewardRate;
 
-        emit EsRNTCreated(address(esRnt));
+        emit StakingInitialized(_stakingToken, _esToken, _rewardRate);
     }
 
     // set new reward rate
@@ -60,24 +63,27 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
         emit RewardRateUpdated(oldRate, newRate);
     }
 
+    // set esToken
+    function setEsToken(address _esToken) external onlyOwner {
+        if (_esToken == address(0)) revert InvalidToken();
+        esToken = IEsToken(_esToken);
+        emit EsTokenSet(_esToken);
+    }
+
     // stake RNT
     function stake(uint256 amount) external nonReentrant whenNotPaused {
         if (amount == 0) revert CannotStakeZero();
 
         StakeInfo storage info = stakeInfos[msg.sender];
 
-        // if it's the first stake, initialize the last reward time
         if (info.stakedAmount == 0) {
             info.lastRewardTime = block.timestamp;
         } else {
-            // if it's not the first stake, claim the previous reward first
             _claimReward();
         }
 
-        // transfer RNT from user to this contract (need approve first)
-        SafeTransferLib.safeTransferFrom(address(rnt), msg.sender, address(this), amount);
+        SafeTransferLib.safeTransferFrom(address(stakingToken), msg.sender, address(this), amount);
 
-        // update staked amount
         unchecked {
             info.stakedAmount += amount;
         }
@@ -90,13 +96,10 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
         StakeInfo storage info = stakeInfos[msg.sender];
         if (amount == 0 || amount > info.stakedAmount) revert InvalidAmount();
 
-        // claim the reward finally
         _claimReward();
 
-        // transfer RNT from this contract to user
-        SafeTransferLib.safeTransfer(address(rnt), msg.sender, amount);
+        SafeTransferLib.safeTransfer(address(stakingToken), msg.sender, amount);
 
-        // update staked amount
         unchecked {
             info.stakedAmount -= amount;
         }
@@ -115,10 +118,9 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
         uint256 amount = info.stakedAmount;
         if (amount == 0) revert InvalidAmount();
 
-        // transfer RNT from this contract to user
-        uint256 amountBefore = rnt.balanceOf(msg.sender);
-        SafeTransferLib.safeTransfer(address(rnt), msg.sender, amount);
-        uint256 amountAfter = rnt.balanceOf(msg.sender);
+        uint256 amountBefore = stakingToken.balanceOf(msg.sender);
+        SafeTransferLib.safeTransfer(address(stakingToken), msg.sender, amount);
+        uint256 amountAfter = stakingToken.balanceOf(msg.sender);
         if (amountAfter - amountBefore != amount) revert InvalidAmount();
 
         info.stakedAmount = 0;
@@ -137,17 +139,13 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
         unchecked {
             pendingTime = currentTime - info.lastRewardTime;
         }
-        // avoid duplicate rewards in the same block
         if (pendingTime == 0) return;
 
-        // calculate reward based on staked amount and time
-        // daily reward rate = rewardRate (1e18 = 100%)
         unchecked {
             uint256 reward = info.stakedAmount * rewardRate / 1e18;
             reward = reward * pendingTime / 1 days;
             if (reward != 0) {
-                // mint esRNT to user
-                esRnt.mint(msg.sender, reward);
+                esToken.mint(msg.sender, reward);
                 info.lastRewardTime = currentTime;
                 emit RewardClaimed(msg.sender, reward);
             }
@@ -164,9 +162,9 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
     function getUserInfo(address user)
         external
         view
-        returns (StakeInfo memory stakeInfo, uint256 totalLocked, EsRNT.LockInfo[] memory lockInfo)
+        returns (StakeInfo memory stakeInfo, uint256 totalLocked, IEsToken.LockInfo[] memory lockInfo)
     {
-        return (stakeInfos[user], esRnt.getTotalLocked(user), esRnt.getLockInfo(user));
+        return (stakeInfos[user], esToken.getTotalLocked(user), esToken.getLockInfo(user));
     }
 
     // pause

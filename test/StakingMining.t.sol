@@ -22,32 +22,32 @@ contract StakingMiningTest is Test {
         user1 = makeAddr("user1");
         user2 = makeAddr("user2");
 
-        // deploy RNT token
         vm.startPrank(owner);
+
+        // deploy contracts
         rnt = new RNT();
+        esRnt = new EsRNT();
+        stakingMining = new StakingMining(
+            address(rnt),
+            address(esRnt),
+            1e18 // reward rate
+        );
 
-        // deploy staking mining contract
-        // 30 days lock period
-        // 1e18 means (1RNT = 1esRNT)
-        stakingMining = new StakingMining(address(rnt), 30 days, 1e18);
-        // get esRNT contract address
-        esRnt = stakingMining.esRnt();
+        // initialize EsRNT
+        esRnt.initialize(address(rnt), 30 days, address(stakingMining));
 
-        // mint enough RNT for esRNT conversion
+        // mint RNT
         rnt.mint(address(esRnt), 1_000_000 * 1e18);
-        vm.stopPrank();
-
-        // mint enough RNT for user1 and user2
-        vm.startPrank(owner);
         rnt.mint(user1, INITIAL_MINT);
         rnt.mint(user2, INITIAL_MINT);
+
         vm.stopPrank();
     }
 
     function test_InitialState() public {
-        assertEq(address(stakingMining.rnt()), address(rnt));
+        assertEq(address(stakingMining.stakingToken()), address(rnt));
         assertEq(stakingMining.owner(), owner);
-        assertEq(address(stakingMining.esRnt()), address(esRnt));
+        assertEq(address(stakingMining.esToken()), address(esRnt));
     }
 
     function test_Stake() public {
@@ -136,7 +136,7 @@ contract StakingMiningTest is Test {
         stakingMining.claimReward();
 
         // verify lock info
-        assertEq(stakingMining.esRnt().getTotalLocked(user1), stakeAmount);
+        assertEq(stakingMining.esToken().getTotalLocked(user1), stakeAmount);
         vm.stopPrank();
     }
 
