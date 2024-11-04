@@ -47,9 +47,9 @@ contract EsRNT is ERC20, Ownable {
         emit Locked(to, amount, block.timestamp);
     }
 
+    // convert esRNT to RNT
     function convert(uint256 lockIndex) external {
         if (lockIndex >= lockInfos[msg.sender].length) revert InvalidLockIndex();
-
         LockInfo storage lock = lockInfos[msg.sender][lockIndex];
         if (lock.amount == 0) revert NoLockedTokens();
 
@@ -57,9 +57,11 @@ contract EsRNT is ERC20, Ownable {
         uint256 totalAmount = lock.amount;
         uint256 unlockedAmount;
 
+        // if lock period is passed, unlock all
         if (timePassed >= lockPeriod) {
             unlockedAmount = totalAmount;
         } else {
+            // if lock period is not passed, unlock partially
             unlockedAmount = (totalAmount * timePassed) / lockPeriod;
         }
 
