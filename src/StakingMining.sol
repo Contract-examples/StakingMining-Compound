@@ -101,9 +101,11 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
 
         StakeInfo storage info = stakeInfos[msg.sender];
 
+        // first stake, we just set the last reward time
         if (info.stakedAmount == 0) {
             info.lastRewardTime = block.timestamp;
         } else {
+            // not first stake, claim reward first
             _claimReward();
         }
 
@@ -127,8 +129,10 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
         StakeInfo storage info = stakeInfos[msg.sender];
         if (amount == 0 || amount > info.stakedAmount) revert InvalidAmount();
 
+        // claim reward first
         _claimReward();
 
+        // transfer from this to user
         SafeTransferLib.safeTransfer(address(stakingToken), msg.sender, amount);
 
         unchecked {
@@ -149,6 +153,7 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
         uint256 amount = info.stakedAmount;
         if (amount == 0) revert InvalidAmount();
 
+        // transfer staking token to user
         uint256 amountBefore = stakingToken.balanceOf(msg.sender);
         SafeTransferLib.safeTransfer(address(stakingToken), msg.sender, amount);
         uint256 amountAfter = stakingToken.balanceOf(msg.sender);
