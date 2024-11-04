@@ -155,8 +155,12 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
     // view function: total locked esRNT
     function getTotalLockedEsRNT(address user) external view returns (uint256) {
         uint256 total = 0;
-        for (uint256 i = 0; i < lockInfos[user].length; i++) {
+        uint256 length = lockInfos[user].length;
+        for (uint256 i = 0; i < length;) {
             total += lockInfos[user][i].amount;
+            unchecked {
+                i++;
+            }
         }
         return total;
     }
