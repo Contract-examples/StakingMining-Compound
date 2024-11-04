@@ -36,8 +36,10 @@ contract EsRNT is ReentrancyGuard, ERC20, Ownable, Initializable {
     // user => locks
     mapping(address => LockInfo[]) public lockInfos;
 
+    // constructor
     constructor() ERC20("esRNT", "esRNT") Ownable(msg.sender) { }
 
+    // initialize
     function initialize(address _stakingToken, uint256 _lockPeriod, address _stakingMining) external initializer {
         if (_stakingToken == address(0) || _stakingMining == address(0)) revert InvalidToken();
 
