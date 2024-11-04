@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import { Test, console2 } from "forge-std/Test.sol";
-import { StakingMining } from "../src/StakingMining.sol";
-import { EsRNT } from "../src/EsRNT.sol";
-import { RNT } from "../src/RNT.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
+import "forge-std/console2.sol";
+import "forge-std/Test.sol";
+import "../src/StakingMining.sol";
+import "../src/EsRNT.sol";
+import "../src/RNT.sol";
 
 contract StakingMiningTest is Test {
     StakingMining public stakingMining;
@@ -13,13 +16,17 @@ contract StakingMiningTest is Test {
 
     address public owner;
     address public user1;
+    uint256 public user1PrivateKey;
     address public user2;
 
     uint256 public constant INITIAL_MINT = 10_000 * 1e18;
 
     function setUp() public {
         owner = makeAddr("owner");
-        user1 = makeAddr("user1");
+
+        user1PrivateKey = 0x3389;
+        user1 = vm.addr(user1PrivateKey);
+
         user2 = makeAddr("user2");
 
         vm.startPrank(owner);
@@ -57,6 +64,53 @@ contract StakingMiningTest is Test {
         vm.startPrank(user1);
         rnt.approve(address(stakingMining), stakeAmount);
         stakingMining.stake(stakeAmount, 0, 0, bytes32(0), bytes32(0));
+
+        // verify stake status
+        (uint256 stakedAmount,) = stakingMining.stakeInfos(user1);
+        assertEq(stakedAmount, stakeAmount);
+        assertEq(rnt.balanceOf(address(stakingMining)), stakeAmount);
+        vm.stopPrank();
+    }
+
+    function test_StakePermit() public {
+        uint256 stakeAmount = 1000 * 1e18;
+
+        // approve and stake
+        vm.startPrank(user1);
+
+        uint256 deadline = block.timestamp + 1 hours;
+        console2.log("deadline: %d", deadline);
+
+        // get the nonce
+        uint256 nonce = 0;
+        console2.log("nonce:", nonce);
+
+        // build the permit data
+        bytes32 structHash = keccak256(
+            abi.encode(
+                keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"),
+                user1,
+                address(stakingMining),
+                stakeAmount,
+                nonce,
+                deadline
+            )
+        );
+        console2.log("structHash: %s", Strings.toHexString(uint256(structHash)));
+
+        // build the digest
+        bytes32 domainSeparator = rnt.DOMAIN_SEPARATOR();
+        console2.log("domainSeparator: %s", Strings.toHexString(uint256(domainSeparator)));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+        console2.log("digest: %s", Strings.toHexString(uint256(digest)));
+
+        // sign the digest with user1's private key
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(user1PrivateKey, digest);
+        console2.log("v: %s", Strings.toHexString(uint256(v)));
+        console2.log("r: %s", Strings.toHexString(uint256(r)));
+        console2.log("s: %s", Strings.toHexString(uint256(s)));
+
+        stakingMining.stake(stakeAmount, deadline, v, r, s);
 
         // verify stake status
         (uint256 stakedAmount,) = stakingMining.stakeInfos(user1);
