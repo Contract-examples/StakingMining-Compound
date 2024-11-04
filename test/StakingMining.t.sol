@@ -134,7 +134,28 @@ contract StakingMiningTest is Test {
         stakingMining.claimReward();
 
         // verify lock info
-        assertEq(stakingMining.getTotalLockedEsRNT(user1), stakeAmount);
+        assertEq(stakingMining.esRnt().getTotalLocked(user1), stakeAmount);
+        vm.stopPrank();
+    }
+
+    // alternative way to claim reward
+    function test_ClaimReward_Alternative() public {
+        uint256 stakeAmount = 1000 * 1e18;
+
+        // stake
+        vm.startPrank(user1);
+        rnt.approve(address(stakingMining), stakeAmount);
+        stakingMining.stake(stakeAmount);
+
+        // skip 1 day
+        skip(1 days);
+
+        // claim reward
+        stakingMining.claimReward();
+
+        // verify lock info
+        (, uint256 totalLocked,) = stakingMining.getUserInfo(user1);
+        assertEq(totalLocked, stakeAmount);
         vm.stopPrank();
     }
 

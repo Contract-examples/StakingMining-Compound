@@ -5,7 +5,6 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@solady/utils/SafeTransferLib.sol";
 import "./EsRNT.sol";
 
@@ -62,8 +61,10 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
         // transfer RNT from user to this contract (need approve first)
         SafeTransferLib.safeTransferFrom(address(rnt), msg.sender, address(this), amount);
 
-        // update staked amount
-        info.stakedAmount += amount;
+        // update staked amoun
+        unchecked {
+            info.stakedAmount += amount;
+        }
 
         emit Staked(msg.sender, amount);
     }
@@ -80,7 +81,9 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
         SafeTransferLib.safeTransfer(address(rnt), msg.sender, amount);
 
         // update staked amount
-        info.stakedAmount -= amount;
+        unchecked {
+            info.stakedAmount -= amount;
+        }
 
         emit Withdrawn(msg.sender, amount);
     }
@@ -95,7 +98,11 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
         StakeInfo storage info = stakeInfos[msg.sender];
         if (info.stakedAmount == 0) return;
 
-        uint256 pendingTime = block.timestamp - info.lastRewardTime;
+        uint256 currentTime = block.timestamp;
+        uint256 pendingTime;
+        unchecked {
+            pendingTime = currentTime - info.lastRewardTime;
+        }
         // avoid duplicate rewards in the same block
         if (pendingTime == 0) return;
 
@@ -106,28 +113,42 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
         if (reward != 0) {
             // mint esRNT to user
             esRnt.mint(msg.sender, reward);
-            info.lastRewardTime = block.timestamp;
+            info.lastRewardTime = currentTime;
             emit RewardClaimed(msg.sender, reward);
         }
+    }
+
+    // emergency withdraw
+    function emergencyWithdraw() external nonReentrant whenPaused {
+        StakeInfo storage info = stakeInfos[msg.sender];
+        uint256 amount = info.stakedAmount;
+        if (amount == 0) revert InvalidAmount();
+
+        // transfer RNT from this contract to user
+        uint256 amountBefore = rnt.balanceOf(msg.sender);
+        SafeTransferLib.safeTransfer(address(rnt), msg.sender, amount);
+        uint256 amountAfter = rnt.balanceOf(msg.sender);
+        if (amountAfter - amountBefore != amount) revert InvalidAmount();
+
+        info.stakedAmount = 0;
+        info.lastRewardTime = 0;
+
+        emit Withdrawn(msg.sender, amount);
     }
 
     // view function: pending reward
     function pendingReward(address user) external view returns (uint256) {
         StakeInfo memory info = stakeInfos[user];
-        if (info.stakedAmount == 0) return 0;
-
-        // 1 RNT = 1 esRNT per day
-        return info.stakedAmount;
+        return info.stakedAmount == 0 ? 0 : info.stakedAmount;
     }
 
-    // view function: total locked esRNT
-    function getTotalLockedEsRNT(address user) external view returns (uint256) {
-        return esRnt.getTotalLocked(user);
-    }
-
-    // view function: get user lock info
-    function getUserLockInfo(address user) external view returns (EsRNT.LockInfo[] memory) {
-        return esRnt.getLockInfo(user);
+    // view function: get user info
+    function getUserInfo(address user)
+        external
+        view
+        returns (StakeInfo memory stakeInfo, uint256 totalLocked, EsRNT.LockInfo[] memory lockInfo)
+    {
+        return (stakeInfos[user], esRnt.getTotalLocked(user), esRnt.getLockInfo(user));
     }
 
     // pause
