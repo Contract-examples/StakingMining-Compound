@@ -165,6 +165,11 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
         return total;
     }
 
+    // view function: get user lock info
+    function getUserLockInfo(address user) external view returns (LockInfo[] memory) {
+        return lockInfos[user];
+    }
+
     // pause
     function pause() external onlyOwner {
         _pause();
