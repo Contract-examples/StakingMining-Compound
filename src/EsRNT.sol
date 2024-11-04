@@ -7,15 +7,15 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@solady/utils/SafeTransferLib.sol";
 
 // TODO: EIP-2612
-contract EsRNT is ERC20, Ownable {
+contract EsRNT is ReentrancyGuard, ERC20, Ownable {
     // custom errors
     error InvalidLockIndex();
     error NoLockedTokens();
     error ZeroAddress();
 
     // events
-    event Locked(address indexed user, uint256 amount, uint256 lockTime);
-    event Converted(address indexed user, uint256 amount, uint256 receivedAmount);
+    event Locked(address indexed user, uint256 indexed lockIndex, uint256 amount, uint256 lockTime);
+    event Converted(address indexed user, uint256 indexed lockIndex, uint256 amount, uint256 receivedAmount);
 
     // RNT token
     IERC20 public immutable rnt;
@@ -31,6 +31,8 @@ contract EsRNT is ERC20, Ownable {
 
     // user => locks
     mapping(address => LockInfo[]) public lockInfos;
+    // user => lock count
+    mapping(address => uint256) public userLockCount;
 
     constructor(address _rnt, uint256 _lockPeriod) ERC20("esRNT", "esRNT") Ownable(msg.sender) {
         if (_rnt == address(0)) revert ZeroAddress();
@@ -42,16 +44,17 @@ contract EsRNT is ERC20, Ownable {
     function mint(address to, uint256 amount) external onlyOwner {
         // mint
         _mint(to, amount);
-
-        // add to lock info
+        uint256 lockIndex = userLockCount[to];
         lockInfos[to].push(LockInfo({ amount: amount, lockTime: block.timestamp }));
+        userLockCount[to] = lockIndex + 1;
 
-        emit Locked(to, amount, block.timestamp);
+        emit Locked(to, lockIndex, amount, block.timestamp);
     }
 
     // convert esRNT to RNT
     function convert(uint256 lockIndex) external nonReentrant {
         if (lockIndex >= lockInfos[msg.sender].length) revert InvalidLockIndex();
+
         LockInfo storage lock = lockInfos[msg.sender][lockIndex];
         if (lock.amount == 0) revert NoLockedTokens();
 
@@ -76,7 +79,7 @@ contract EsRNT is ERC20, Ownable {
         // clear lock info
         lock.amount = 0;
 
-        emit Converted(msg.sender, totalAmount, unlockedAmount);
+        emit Converted(msg.sender, lockIndex, totalAmount, unlockedAmount);
     }
 
     // view function: get total locked amount
@@ -95,5 +98,10 @@ contract EsRNT is ERC20, Ownable {
     // view function: get user lock info
     function getLockInfo(address user) external view returns (LockInfo[] memory) {
         return lockInfos[user];
+    }
+
+    // view function: get user lock count
+    function getUserLockCount(address user) external view returns (uint256) {
+        return userLockCount[user];
     }
 }
