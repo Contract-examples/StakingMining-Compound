@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@solady/utils/SafeTransferLib.sol";
 
 // TODO: EIP-2612
@@ -49,7 +50,7 @@ contract EsRNT is ERC20, Ownable {
     }
 
     // convert esRNT to RNT
-    function convert(uint256 lockIndex) external {
+    function convert(uint256 lockIndex) external nonReentrant {
         if (lockIndex >= lockInfos[msg.sender].length) revert InvalidLockIndex();
         LockInfo storage lock = lockInfos[msg.sender][lockIndex];
         if (lock.amount == 0) revert NoLockedTokens();
