@@ -3,10 +3,11 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@solady/utils/SafeTransferLib.sol";
 
-contract StakingMining is ReentrancyGuard, Ownable {
+contract StakingMining is ReentrancyGuard, Ownable, Pausable {
     // custom errors
     error InvalidAmount();
     error InvalidLockIndex();
@@ -49,7 +50,7 @@ contract StakingMining is ReentrancyGuard, Ownable {
     }
 
     // stake RNT
-    function stake(uint256 amount) external nonReentrant {
+    function stake(uint256 amount) external nonReentrant whenNotPaused {
         if (amount == 0) revert CannotStakeZero();
 
         StakeInfo storage info = stakeInfos[msg.sender];
@@ -72,7 +73,7 @@ contract StakingMining is ReentrancyGuard, Ownable {
     }
 
     // unstake RNT
-    function unstake(uint256 amount) external nonReentrant {
+    function unstake(uint256 amount) external nonReentrant whenNotPaused {
         StakeInfo storage info = stakeInfos[msg.sender];
         if (amount == 0 || amount > info.stakedAmount) revert InvalidAmount();
 
@@ -89,7 +90,7 @@ contract StakingMining is ReentrancyGuard, Ownable {
     }
 
     // claim esRNT reward
-    function claimReward() external nonReentrant {
+    function claimReward() external nonReentrant whenNotPaused {
         _claimReward();
     }
 
@@ -115,7 +116,7 @@ contract StakingMining is ReentrancyGuard, Ownable {
     }
 
     // convert esRNT to RNT
-    function convertEsRNTtoRNT(uint256 lockIndex) external nonReentrant {
+    function convertEsRNTtoRNT(uint256 lockIndex) external nonReentrant whenNotPaused {
         if (lockIndex >= lockInfos[msg.sender].length) revert InvalidLockIndex();
 
         LockInfo storage lock = lockInfos[msg.sender][lockIndex];
@@ -158,5 +159,15 @@ contract StakingMining is ReentrancyGuard, Ownable {
             total += lockInfos[user][i].amount;
         }
         return total;
+    }
+
+    // pause
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    // unpause
+    function unpause() external onlyOwner {
+        _unpause();
     }
 }
