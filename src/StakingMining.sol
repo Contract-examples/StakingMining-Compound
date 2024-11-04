@@ -108,13 +108,15 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
 
         // calculate reward based on staked amount and time
         // daily reward rate = DAILY_REWARD_RATE (1e18 = 100%)
-        uint256 reward = info.stakedAmount * DAILY_REWARD_RATE / 1e18;
-        reward = reward * pendingTime / 1 days;
-        if (reward != 0) {
-            // mint esRNT to user
-            esRnt.mint(msg.sender, reward);
-            info.lastRewardTime = currentTime;
-            emit RewardClaimed(msg.sender, reward);
+        unchecked {
+            uint256 reward = info.stakedAmount * DAILY_REWARD_RATE / 1e18;
+            reward = reward * pendingTime / 1 days;
+            if (reward != 0) {
+                // mint esRNT to user
+                esRnt.mint(msg.sender, reward);
+                info.lastRewardTime = currentTime;
+                emit RewardClaimed(msg.sender, reward);
+            }
         }
     }
 
