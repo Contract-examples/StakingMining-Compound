@@ -2,11 +2,11 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin-upgradeable/contracts/proxy/utils/Initializable.sol";
 import "@solady/utils/SafeTransferLib.sol";
-import "./interfaces/IStakingToken.sol";
 
 // no need for EIP-2612
 contract EsRNT is ReentrancyGuard, ERC20, Ownable, Initializable {
@@ -22,7 +22,7 @@ contract EsRNT is ReentrancyGuard, ERC20, Ownable, Initializable {
     event Converted(address indexed user, uint256 amount, uint256 receivedAmount);
 
     // RNT token
-    IStakingToken public stakingToken;
+    IERC20 public stakingToken;
 
     // lock period
     uint256 public lockPeriod;
@@ -43,7 +43,7 @@ contract EsRNT is ReentrancyGuard, ERC20, Ownable, Initializable {
     function initialize(address _stakingToken, uint256 _lockPeriod, address _stakingMining) external initializer {
         if (_stakingToken == address(0) || _stakingMining == address(0)) revert InvalidToken();
 
-        stakingToken = IStakingToken(_stakingToken);
+        stakingToken = IERC20(_stakingToken);
         lockPeriod = _lockPeriod;
         _transferOwnership(_stakingMining);
         emit Initialized(_stakingToken, _lockPeriod, _stakingMining);

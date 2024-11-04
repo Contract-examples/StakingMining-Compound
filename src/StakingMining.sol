@@ -4,9 +4,9 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import "@solady/utils/SafeTransferLib.sol";
-import "./interfaces/IStakingToken.sol";
 import "./interfaces/IEsToken.sol";
 
 contract StakingMining is ReentrancyGuard, Ownable, Pausable {
@@ -30,7 +30,7 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
     event EsTokenSet(address indexed esToken);
 
     // tokens
-    IStakingToken public stakingToken;
+    IERC20 public stakingToken;
     IERC20Permit public stakingTokenPermit;
     IEsToken public esToken;
 
@@ -50,7 +50,7 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
         if (_stakingToken == address(0) || _esToken == address(0)) revert InvalidToken();
         if (_rewardRate == 0) revert InvalidRewardRate();
 
-        stakingToken = IStakingToken(_stakingToken);
+        stakingToken = IERC20(_stakingToken);
         if (_isPermitSupported(_stakingToken)) {
             stakingTokenPermit = IERC20Permit(_stakingToken);
         }
@@ -74,7 +74,7 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
     // set staking token
     function setStakingToken(address _stakingToken) external onlyOwner {
         if (_stakingToken == address(0)) revert InvalidToken();
-        stakingToken = IStakingToken(_stakingToken);
+        stakingToken = IERC20(_stakingToken);
         emit StakingTokenSet(_stakingToken);
     }
 
