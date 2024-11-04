@@ -44,10 +44,8 @@ contract EsRNT is ReentrancyGuard, ERC20, Ownable {
         // mint
         _mint(to, amount);
 
-        // we know amount will not overflow totalSupply
-        unchecked {
-            lockInfos[to].push(LockInfo({ amount: amount, lockTime: block.timestamp }));
-        }
+        // add to lock info
+        lockInfos[to].push(LockInfo({ amount: amount, lockTime: block.timestamp }));
 
         emit Locked(to, amount, block.timestamp);
     }
