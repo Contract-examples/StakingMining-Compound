@@ -81,7 +81,7 @@ contract StakingMiningTest is Test {
         uint256 deadline = block.timestamp + 1 hours;
         console2.log("deadline: %d", deadline);
 
-        // get the nonce
+        // get the nonce (set 0 for testing)
         uint256 nonce = 0;
         console2.log("nonce:", nonce);
 
