@@ -61,7 +61,7 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
         // transfer RNT from user to this contract (need approve first)
         SafeTransferLib.safeTransferFrom(address(rnt), msg.sender, address(this), amount);
 
-        // update staked amoun
+        // update staked amount
         unchecked {
             info.stakedAmount += amount;
         }
