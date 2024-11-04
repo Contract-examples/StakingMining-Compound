@@ -27,7 +27,8 @@ contract StakingMiningTest is Test {
         rnt = new RNT();
 
         // deploy staking mining contract
-        stakingMining = new StakingMining(address(rnt), 30 days);
+        // 1e18 means (1RNT = 1esRNT)
+        stakingMining = new StakingMining(address(rnt), 30 days, 1e18);
         // get esRNT contract address
         esRnt = stakingMining.esRnt();
 

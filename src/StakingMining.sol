@@ -14,12 +14,14 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
     error InvalidLockIndex();
     error CannotStakeZero();
     error NoLockedTokens();
+    error InvalidRewardRate();
 
     // events
     event EsRNTCreated(address indexed esRnt);
     event Staked(address indexed user, uint256 amount);
     event Withdrawn(address indexed user, uint256 amount);
     event RewardClaimed(address indexed user, uint256 amount);
+    event RewardRateUpdated(uint256 oldRate, uint256 newRate);
 
     // RNT token
     IERC20 public immutable rnt;
@@ -34,14 +36,27 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
     // user stake info
     mapping(address => StakeInfo) public stakeInfos;
 
-    // daily reward rate 1RNT = 1esRNT
-    uint256 public constant DAILY_REWARD_RATE = 1e18;
+    // daily reward rate 1RNT = 1esRNT (default=1e18)
+    uint256 public rewardRate;
 
-    constructor(address _rnt, uint256 _lockPeriod) Ownable(msg.sender) {
+    constructor(address _rnt, uint256 _lockPeriod, uint256 _rewardRate) Ownable(msg.sender) {
+        if (_rewardRate == 0) revert InvalidRewardRate();
+
         rnt = IERC20(_rnt);
         esRnt = new EsRNT(_rnt, _lockPeriod);
+        rewardRate = _rewardRate;
 
         emit EsRNTCreated(address(esRnt));
+    }
+
+    // set new reward rate
+    function setRewardRate(uint256 newRate) external onlyOwner {
+        if (newRate == 0) revert InvalidRewardRate();
+
+        uint256 oldRate = rewardRate;
+        rewardRate = newRate;
+
+        emit RewardRateUpdated(oldRate, newRate);
     }
 
     // stake RNT
@@ -93,33 +108,6 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
         _claimReward();
     }
 
-    // internal function: calculate and distribute reward
-    function _claimReward() internal {
-        StakeInfo storage info = stakeInfos[msg.sender];
-        if (info.stakedAmount == 0) return;
-
-        uint256 currentTime = block.timestamp;
-        uint256 pendingTime;
-        unchecked {
-            pendingTime = currentTime - info.lastRewardTime;
-        }
-        // avoid duplicate rewards in the same block
-        if (pendingTime == 0) return;
-
-        // calculate reward based on staked amount and time
-        // daily reward rate = DAILY_REWARD_RATE (1e18 = 100%)
-        unchecked {
-            uint256 reward = info.stakedAmount * DAILY_REWARD_RATE / 1e18;
-            reward = reward * pendingTime / 1 days;
-            if (reward != 0) {
-                // mint esRNT to user
-                esRnt.mint(msg.sender, reward);
-                info.lastRewardTime = currentTime;
-                emit RewardClaimed(msg.sender, reward);
-            }
-        }
-    }
-
     // emergency withdraw (when paused)
     function emergencyWithdraw() external nonReentrant whenPaused {
         StakeInfo storage info = stakeInfos[msg.sender];
@@ -136,6 +124,33 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
         info.lastRewardTime = 0;
 
         emit Withdrawn(msg.sender, amount);
+    }
+
+    // internal function: calculate and distribute reward
+    function _claimReward() internal {
+        StakeInfo storage info = stakeInfos[msg.sender];
+        if (info.stakedAmount == 0) return;
+
+        uint256 currentTime = block.timestamp;
+        uint256 pendingTime;
+        unchecked {
+            pendingTime = currentTime - info.lastRewardTime;
+        }
+        // avoid duplicate rewards in the same block
+        if (pendingTime == 0) return;
+
+        // calculate reward based on staked amount and time
+        // daily reward rate = rewardRate (1e18 = 100%)
+        unchecked {
+            uint256 reward = info.stakedAmount * rewardRate / 1e18;
+            reward = reward * pendingTime / 1 days;
+            if (reward != 0) {
+                // mint esRNT to user
+                esRnt.mint(msg.sender, reward);
+                info.lastRewardTime = currentTime;
+                emit RewardClaimed(msg.sender, reward);
+            }
+        }
     }
 
     // view function: pending reward

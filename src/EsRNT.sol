@@ -93,7 +93,7 @@ contract EsRNT is ReentrancyGuard, ERC20, Ownable {
 
     // view function: get total locked amount
     function getTotalLocked(address user) external view returns (uint256) {
-        LockInfo[] storage userLocks = lockInfos[user];
+        LockInfo[] memory userLocks = lockInfos[user];
         uint256 total;
         uint256 length = userLocks.length;
 
