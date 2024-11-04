@@ -17,6 +17,7 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
     error NoLockedTokens();
 
     // events
+    event EsRNTCreated(address indexed esRnt);
     event Staked(address indexed user, uint256 amount);
     event Withdrawn(address indexed user, uint256 amount);
     event RewardClaimed(address indexed user, uint256 amount);
@@ -40,6 +41,8 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
     constructor(address _rnt, uint256 _lockPeriod) Ownable(msg.sender) {
         rnt = IERC20(_rnt);
         esRnt = new EsRNT(_rnt, _lockPeriod);
+
+        emit EsRNTCreated(address(esRnt));
     }
 
     // stake RNT
