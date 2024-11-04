@@ -3,11 +3,13 @@ pragma solidity ^0.8.28;
 
 import { Test, console2 } from "forge-std/Test.sol";
 import { StakingMining } from "../src/StakingMining.sol";
+import { EsRNT } from "../src/EsRNT.sol";
 import { RNT } from "../src/RNT.sol";
 
 contract StakingMiningTest is Test {
     StakingMining public stakingMining;
     RNT public rnt;
+    EsRNT public esRnt;
 
     address public owner;
     address public user1;
@@ -20,12 +22,20 @@ contract StakingMiningTest is Test {
         user1 = makeAddr("user1");
         user2 = makeAddr("user2");
 
+        // deploy RNT token
         vm.startPrank(owner);
         rnt = new RNT();
-        stakingMining = new StakingMining(address(rnt));
+
+        // deploy staking mining contract
+        stakingMining = new StakingMining(address(rnt), 30 days);
+        // get esRNT contract address
+        esRnt = stakingMining.esRnt();
+
+        // mint enough RNT for esRNT conversion
+        rnt.mint(address(esRnt), 1_000_000 * 1e18);
         vm.stopPrank();
 
-        // mint RNT
+        // mint enough RNT for user1 and user2
         vm.startPrank(owner);
         rnt.mint(user1, INITIAL_MINT);
         rnt.mint(user2, INITIAL_MINT);
@@ -35,17 +45,18 @@ contract StakingMiningTest is Test {
     function test_InitialState() public {
         assertEq(address(stakingMining.rnt()), address(rnt));
         assertEq(stakingMining.owner(), owner);
+        assertEq(address(stakingMining.esRnt()), address(esRnt));
     }
 
     function test_Stake() public {
         uint256 stakeAmount = 1000 * 1e18;
 
-        // staking
+        // approve and stake
         vm.startPrank(user1);
         rnt.approve(address(stakingMining), stakeAmount);
         stakingMining.stake(stakeAmount);
 
-        // stating ok?
+        // verify stake status
         (uint256 stakedAmount,) = stakingMining.stakeInfos(user1);
         assertEq(stakedAmount, stakeAmount);
         assertEq(rnt.balanceOf(address(stakingMining)), stakeAmount);
@@ -66,11 +77,11 @@ contract StakingMiningTest is Test {
         rnt.approve(address(stakingMining), stakeAmount);
         stakingMining.stake(stakeAmount);
 
-        // unstake partial amount
+        // unstake partial
         uint256 unstakeAmount = 400 * 1e18;
         stakingMining.unstake(unstakeAmount);
 
-        // verify unstake state
+        // verify unstake status
         (uint256 remainingStaked,) = stakingMining.stakeInfos(user1);
         assertEq(remainingStaked, stakeAmount - unstakeAmount);
         assertEq(rnt.balanceOf(address(stakingMining)), stakeAmount - unstakeAmount);
@@ -102,7 +113,7 @@ contract StakingMiningTest is Test {
         // skip 1 day
         skip(1 days);
 
-        // verify pending reward - 1 esRNT per staked RNT per day
+        // verify pending reward
         uint256 pendingReward = stakingMining.pendingReward(user1);
         assertEq(pendingReward, stakeAmount);
         vm.stopPrank();
@@ -110,10 +121,6 @@ contract StakingMiningTest is Test {
 
     function test_ClaimReward() public {
         uint256 stakeAmount = 1000 * 1e18;
-
-        // mint enough RNT for rewards
-        vm.prank(owner);
-        rnt.mint(address(stakingMining), 1_000_000 * 1e18);
 
         // stake
         vm.startPrank(user1);
@@ -126,18 +133,13 @@ contract StakingMiningTest is Test {
         // claim reward
         stakingMining.claimReward();
 
-        // verify lock record - 1 esRNT per staked RNT per day
-        uint256 expectedReward = stakeAmount * 1; // 1 day's reward
-        assertEq(stakingMining.getTotalLockedEsRNT(user1), expectedReward);
+        // verify lock info
+        assertEq(stakingMining.getTotalLockedEsRNT(user1), stakeAmount);
         vm.stopPrank();
     }
 
-    function test_ConvertEsRNTtoRNT() public {
+    function test_ConvertEsRNT() public {
         uint256 stakeAmount = 1000 * 1e18;
-
-        // mint enough RNT for rewards
-        vm.prank(owner);
-        rnt.mint(address(stakingMining), 1_000_000 * 1e18);
 
         // stake and wait 1 day
         vm.startPrank(user1);
@@ -147,15 +149,14 @@ contract StakingMiningTest is Test {
 
         // claim reward
         stakingMining.claimReward();
-        uint256 expectedReward = stakeAmount * 1; // 1 day's reward
-
-        // wait 15 days and convert half of esRNT
-        skip(15 days);
         uint256 initialBalance = rnt.balanceOf(user1);
-        stakingMining.convertEsRNTtoRNT(0);
 
-        // verify the amount of RNT received (should be about 50%)
-        uint256 expectedRNT = (expectedReward * 15 days) / stakingMining.LOCK_PERIOD();
+        // wait 15 days and convert esRNT
+        skip(15 days);
+        esRnt.convert(0);
+
+        // verify converted RNT amount (should be about 50%)
+        uint256 expectedRNT = (stakeAmount * 15 days) / esRnt.lockPeriod();
         assertApproxEqRel(
             rnt.balanceOf(user1) - initialBalance,
             expectedRNT,
@@ -164,12 +165,8 @@ contract StakingMiningTest is Test {
         vm.stopPrank();
     }
 
-    function test_ConvertEsRNTtoRNTAfterFullPeriod() public {
+    function test_ConvertEsRNTAfterFullPeriod() public {
         uint256 stakeAmount = 1000 * 1e18;
-
-        // mint enough RNT for rewards
-        vm.prank(owner);
-        rnt.mint(address(stakingMining), 1_000_000 * 1e18);
 
         // stake and wait 1 day
         vm.startPrank(user1);
@@ -179,20 +176,19 @@ contract StakingMiningTest is Test {
 
         // claim reward
         stakingMining.claimReward();
-        uint256 expectedReward = stakeAmount * 1; // 1 day's reward
-
-        // wait full lock period and convert
-        skip(30 days);
         uint256 initialBalance = rnt.balanceOf(user1);
-        stakingMining.convertEsRNTtoRNT(0);
 
-        // verify the amount of RNT received
-        assertEq(rnt.balanceOf(user1) - initialBalance, expectedReward);
+        // wait full lock period and convert esRNT
+        skip(30 days);
+        esRnt.convert(0);
+
+        // verify received RNT amount
+        assertEq(rnt.balanceOf(user1) - initialBalance, stakeAmount);
         vm.stopPrank();
     }
 
     function testFuzz_Stake(uint256 amount) public {
-        // ensure the stake amount is within a reasonable range
+        // ensure stake amount is reasonable
         amount = bound(amount, 1e18, INITIAL_MINT);
 
         vm.startPrank(user1);
@@ -205,7 +201,7 @@ contract StakingMiningTest is Test {
     }
 
     function testFuzz_UnstakePartial(uint256 stakeAmount, uint256 unstakeAmount) public {
-        // ensure the stake and unstake amounts are within a reasonable range
+        // ensure stake and unstake amounts are reasonable
         stakeAmount = bound(stakeAmount, 1e18, INITIAL_MINT);
         unstakeAmount = bound(unstakeAmount, 1, stakeAmount);
 

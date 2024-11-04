@@ -5,7 +5,9 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@solady/utils/SafeTransferLib.sol";
+import "./EsRNT.sol";
 
 contract StakingMining is ReentrancyGuard, Ownable, Pausable {
     // custom errors
@@ -18,10 +20,10 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
     event Staked(address indexed user, uint256 amount);
     event Withdrawn(address indexed user, uint256 amount);
     event RewardClaimed(address indexed user, uint256 amount);
-    event EsRNTConverted(address indexed user, uint256 amount, uint256 receivedAmount);
 
     // RNT token
-    IERC20 public rnt;
+    IERC20 public immutable rnt;
+    EsRNT public immutable esRnt;
 
     // stake info
     struct StakeInfo {
@@ -29,24 +31,15 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
         uint256 lastRewardTime; // last reward time
     }
 
-    // esRNT lock info
-    struct LockInfo {
-        uint256 amount; // lock amount
-        uint256 lockTime; // lock time
-    }
-
     // user stake info
     mapping(address => StakeInfo) public stakeInfos;
-    // user lock info
-    mapping(address => LockInfo[]) public lockInfos;
 
-    // lock period
-    uint256 public constant LOCK_PERIOD = 30 days;
     // daily reward rate 1RNT = 1esRNT
     uint256 public constant DAILY_REWARD_RATE = 1e18;
 
-    constructor(address _rnt) Ownable(msg.sender) {
+    constructor(address _rnt, uint256 _lockPeriod) Ownable(msg.sender) {
         rnt = IERC20(_rnt);
+        esRnt = new EsRNT(_rnt, _lockPeriod);
     }
 
     // stake RNT
@@ -77,7 +70,7 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
         StakeInfo storage info = stakeInfos[msg.sender];
         if (amount == 0 || amount > info.stakedAmount) revert InvalidAmount();
 
-        // claim the reward first
+        // claim the reward finally
         _claimReward();
 
         // transfer RNT from this contract to user
@@ -108,39 +101,11 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
         uint256 reward = info.stakedAmount * DAILY_REWARD_RATE / 1e18;
         reward = reward * pendingTime / 1 days;
         if (reward != 0) {
-            lockInfos[msg.sender].push(LockInfo({ amount: reward, lockTime: block.timestamp }));
-
+            // mint esRNT
+            esRnt.mint(msg.sender, reward);
             info.lastRewardTime = block.timestamp;
             emit RewardClaimed(msg.sender, reward);
         }
-    }
-
-    // convert esRNT to RNT
-    function convertEsRNTtoRNT(uint256 lockIndex) external nonReentrant whenNotPaused {
-        if (lockIndex >= lockInfos[msg.sender].length) revert InvalidLockIndex();
-
-        LockInfo storage lock = lockInfos[msg.sender][lockIndex];
-        if (lock.amount == 0) revert NoLockedTokens();
-
-        uint256 timePassed = block.timestamp - lock.lockTime;
-        uint256 totalAmount = lock.amount;
-        uint256 unlockedAmount;
-
-        if (timePassed >= LOCK_PERIOD) {
-            // fully unlocked
-            unlockedAmount = totalAmount;
-        } else {
-            // linear unlock, early conversion will burn the locked part
-            unlockedAmount = (totalAmount * timePassed) / LOCK_PERIOD;
-        }
-
-        // transfer RNT from this contract to user
-        SafeTransferLib.safeTransfer(address(rnt), msg.sender, unlockedAmount);
-
-        // clear the lock record first to prevent reentrancy
-        lock.amount = 0;
-
-        emit EsRNTConverted(msg.sender, totalAmount, unlockedAmount);
     }
 
     // view function: pending reward
@@ -154,20 +119,12 @@ contract StakingMining is ReentrancyGuard, Ownable, Pausable {
 
     // view function: total locked esRNT
     function getTotalLockedEsRNT(address user) external view returns (uint256) {
-        uint256 total = 0;
-        uint256 length = lockInfos[user].length;
-        for (uint256 i = 0; i < length;) {
-            total += lockInfos[user][i].amount;
-            unchecked {
-                i++;
-            }
-        }
-        return total;
+        return esRnt.getTotalLocked(user);
     }
 
     // view function: get user lock info
-    function getUserLockInfo(address user) external view returns (LockInfo[] memory) {
-        return lockInfos[user];
+    function getUserLockInfo(address user) external view returns (EsRNT.LockInfo[] memory) {
+        return esRnt.getLockInfo(user);
     }
 
     // pause
