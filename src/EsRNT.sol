@@ -38,7 +38,8 @@ contract EsRNT is ReentrancyGuard, ERC20, Ownable {
         lockPeriod = _lockPeriod;
     }
 
-    // only staking mining contract can mint esRNT
+    // only StakingMining contract can mint esRNT
+    // Owner = StakingMining contract
     function mint(address to, uint256 amount) external onlyOwner {
         // mint
         _mint(to, amount);
