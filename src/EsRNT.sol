@@ -39,7 +39,10 @@ contract EsRNT is ERC20, Ownable {
 
     // only staking mining contract can mint esRNT
     function mint(address to, uint256 amount) external onlyOwner {
+        // mint
         _mint(to, amount);
+
+        // add to lock info
         lockInfos[to].push(LockInfo({ amount: amount, lockTime: block.timestamp }));
 
         emit Locked(to, amount, block.timestamp);
