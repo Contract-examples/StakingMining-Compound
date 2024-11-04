@@ -27,6 +27,7 @@ contract StakingMiningTest is Test {
         rnt = new RNT();
 
         // deploy staking mining contract
+        // 30 days lock period
         // 1e18 means (1RNT = 1esRNT)
         stakingMining = new StakingMining(address(rnt), 30 days, 1e18);
         // get esRNT contract address
