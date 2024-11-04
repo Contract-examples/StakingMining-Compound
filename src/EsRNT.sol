@@ -3,12 +3,10 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@solady/utils/SafeTransferLib.sol";
 
 // TODO: EIP-2612
 contract EsRNT is ERC20, Ownable {
-    using SafeERC20 for IERC20;
-
     // custom errors
     error InvalidLockIndex();
     error NoLockedTokens();
@@ -69,7 +67,7 @@ contract EsRNT is ERC20, Ownable {
         _burn(msg.sender, totalAmount);
 
         // transfer RNT to user
-        rnt.safeTransfer(msg.sender, unlockedAmount);
+        SafeTransferLib.safeTransfer(address(rnt), msg.sender, unlockedAmount);
 
         // clear lock info
         lock.amount = 0;
