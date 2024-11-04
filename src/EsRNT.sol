@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@solady/utils/SafeTransferLib.sol";
 
-// TODO: EIP-2612
+// no need for EIP-2612
 contract EsRNT is ReentrancyGuard, ERC20, Ownable {
     // custom errors
     error InvalidLockIndex();
