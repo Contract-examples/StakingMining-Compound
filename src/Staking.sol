@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "../lib/forge-std/src/console.sol";
+import "../lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
+import "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 import "./RNT.sol";
 import "./interfaces/IStaking.sol";
 
-contract Staking is IStaking, ReentrancyGuardTransient, Ownable {
+contract Staking is IStaking, ReentrancyGuard, Ownable {
     // Custom errors
     error ZeroStake();
     error ZeroWithdraw();
@@ -14,7 +15,7 @@ contract Staking is IStaking, ReentrancyGuardTransient, Ownable {
     error ETHTransferFailed();
     error ZeroAddress();
 
-    // events
+    // Events
     event Staked(address indexed user, uint256 amount);
     event Withdrawn(address indexed user, uint256 amount);
     event RewardPaid(address indexed user, uint256 reward);
@@ -22,12 +23,14 @@ contract Staking is IStaking, ReentrancyGuardTransient, Ownable {
     RNT public immutable rnt;
 
     uint256 public totalStaked;
-    uint256 public lastUpdateBlock; // last update block
-    uint256 public rewardPerTokenStored; // reward per token stored
+    uint256 public lastUpdateBlock;
+    uint256 public accRewardPerShare;
 
-    mapping(address => uint256) public userStakeAmount; // user stake amount
-    mapping(address => uint256) public rewards; // user rewards
-    mapping(address => uint256) public userRewardPerTokenPaid; // user reward per token paid
+    mapping(address => uint256) public userStakeAmount;
+    mapping(address => uint256) public rewards;
+    mapping(address => uint256) public userRewardDebt;
+
+    uint256 private constant PRECISION = 1e24;
 
     constructor(address _initialOwner, address _rnt) Ownable(_initialOwner) {
         if (_rnt == address(0)) revert ZeroAddress();
@@ -35,28 +38,28 @@ contract Staking is IStaking, ReentrancyGuardTransient, Ownable {
         lastUpdateBlock = block.number;
     }
 
-    // update reward
-    modifier updateReward(address account) {
-        rewardPerTokenStored = rewardPerToken();
+    modifier updateReward() {
+        // update global reward
+        uint256 blocksSinceLastUpdate = block.number - lastUpdateBlock;
+        if (blocksSinceLastUpdate > 0 && totalStaked > 0) {
+            uint256 reward = blocksSinceLastUpdate * rnt.REWARD_PER_BLOCK();
+            accRewardPerShare += (reward * PRECISION) / totalStaked;
+        }
         lastUpdateBlock = block.number;
 
-        if (account != address(0)) {
-            rewards[account] = earned(account);
-            userRewardPerTokenPaid[account] = rewardPerTokenStored;
+        // update user reward
+        if (userStakeAmount[msg.sender] > 0) {
+            uint256 pending = (userStakeAmount[msg.sender] * accRewardPerShare) / PRECISION - userRewardDebt[msg.sender];
+            if (pending > 0) {
+                rewards[msg.sender] += pending;
+            }
+            // update user reward debt
+            userRewardDebt[msg.sender] = (userStakeAmount[msg.sender] * accRewardPerShare) / PRECISION;
         }
         _;
     }
 
-    // calculate reward per token
-    function rewardPerToken() public view returns (uint256) {
-        if (totalStaked == 0) {
-            return rewardPerTokenStored;
-        }
-        return rewardPerTokenStored + (((block.number - lastUpdateBlock) * rnt.REWARD_PER_BLOCK() * 1e18) / totalStaked);
-    }
-
-    // stake ETH
-    function stake() external payable override nonReentrant updateReward(msg.sender) {
+    function stake() external payable override nonReentrant updateReward {
         if (msg.value == 0) revert ZeroStake();
 
         totalStaked += msg.value;
@@ -65,40 +68,47 @@ contract Staking is IStaking, ReentrancyGuardTransient, Ownable {
         emit Staked(msg.sender, msg.value);
     }
 
-    // withdraw ETH
-    function unstake(uint256 amount) external override nonReentrant updateReward(msg.sender) {
+    function unstake(uint256 amount) external override nonReentrant updateReward {
         if (amount == 0) revert ZeroWithdraw();
         if (userStakeAmount[msg.sender] < amount) revert InsufficientBalance();
 
+        // update stake amount
         totalStaked -= amount;
         userStakeAmount[msg.sender] -= amount;
 
-        // transfer ETH to user
+        // transfer ETH
         (bool success,) = msg.sender.call{ value: amount }("");
         if (!success) revert ETHTransferFailed();
 
         emit Withdrawn(msg.sender, amount);
     }
 
-    // claim RNT reward
-    function claim() external override nonReentrant updateReward(msg.sender) {
-        uint256 reward = rewards[msg.sender];
-        if (reward > 0) {
+    function claim() external override nonReentrant updateReward {
+        uint256 totalReward = rewards[msg.sender];
+        if (totalReward > 0) {
             rewards[msg.sender] = 0;
-            rnt.mint(msg.sender, reward);
-            emit RewardPaid(msg.sender, reward);
+            rnt.mint(msg.sender, totalReward);
+            emit RewardPaid(msg.sender, totalReward);
         }
     }
 
-    // view user stake amount
-    function balanceOf(address account) external view override returns (uint256) {
-        return userStakeAmount[account];
+    function earned(address account) public view override returns (uint256) {
+        uint256 currentAccRewardPerShare = accRewardPerShare;
+
+        // calculate new reward
+        if (block.number > lastUpdateBlock && totalStaked > 0) {
+            uint256 blocksSinceLastUpdate = block.number - lastUpdateBlock;
+            uint256 reward = blocksSinceLastUpdate * rnt.REWARD_PER_BLOCK();
+            currentAccRewardPerShare += (reward * PRECISION) / totalStaked;
+        }
+
+        // calculate pending reward
+        uint256 pending = (userStakeAmount[account] * currentAccRewardPerShare) / PRECISION - userRewardDebt[account];
+        return rewards[account] + pending;
     }
 
-    // calculate earned reward
-    function earned(address account) public view override returns (uint256) {
-        return
-            (userStakeAmount[account] * (rewardPerToken() - userRewardPerTokenPaid[account]) / 1e18) + rewards[account];
+    function balanceOf(address account) external view override returns (uint256) {
+        return userStakeAmount[account];
     }
 
     receive() external payable { }
