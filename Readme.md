@@ -42,3 +42,6 @@ Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 1.35ms (1.06ms CPU 
 
 Ran 1 test suite in 9.26ms (1.35ms CPU time): 3 tests passed, 0 failed, 0 skipped (3 total tests)
 ```
+
+## Key
+- https://github.com/gmh5225/Smart-Contract-Precision-Handling-Best-Practices
