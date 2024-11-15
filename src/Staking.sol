@@ -2,12 +2,12 @@
 pragma solidity ^0.8.28;
 
 import "../lib/forge-std/src/console.sol";
-import "../lib/openzeppelin-contracts/contracts/utils/ReentrancyGuardTransient.sol";
+import "../lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 import "./RNT.sol";
 import "./interfaces/IStaking.sol";
 
-contract Staking is IStaking, ReentrancyGuardTransient, Ownable {
+contract Staking is IStaking, ReentrancyGuard, Ownable {
     // Custom errors
     error ZeroStake();
     error ZeroWithdraw();
@@ -39,22 +39,23 @@ contract Staking is IStaking, ReentrancyGuardTransient, Ownable {
     }
 
     modifier updateReward() {
-        // update global reward
+        // Final = Principal * (1 + rate)^time
         uint256 blocksSinceLastUpdate = block.number - lastUpdateBlock;
         if (blocksSinceLastUpdate > 0 && totalStaked > 0) {
             uint256 reward = blocksSinceLastUpdate * rnt.REWARD_PER_BLOCK();
-            accRewardPerShare += (reward * PRECISION) / totalStaked;
+            uint256 rewardPerShare = (reward * PRECISION * PRECISION) / (totalStaked * PRECISION);
+            accRewardPerShare += rewardPerShare;
         }
         lastUpdateBlock = block.number;
 
-        // update user reward
         if (userStakeAmount[msg.sender] > 0) {
-            uint256 pending = (userStakeAmount[msg.sender] * accRewardPerShare) / PRECISION - userRewardDebt[msg.sender];
+            uint256 pending = (userStakeAmount[msg.sender] * accRewardPerShare * PRECISION) / (PRECISION * PRECISION)
+                - userRewardDebt[msg.sender];
             if (pending > 0) {
                 rewards[msg.sender] += pending;
             }
-            // update user reward debt
-            userRewardDebt[msg.sender] = (userStakeAmount[msg.sender] * accRewardPerShare) / PRECISION;
+            userRewardDebt[msg.sender] =
+                (userStakeAmount[msg.sender] * accRewardPerShare * PRECISION) / (PRECISION * PRECISION);
         }
         _;
     }
@@ -72,11 +73,9 @@ contract Staking is IStaking, ReentrancyGuardTransient, Ownable {
         if (amount == 0) revert ZeroWithdraw();
         if (userStakeAmount[msg.sender] < amount) revert InsufficientBalance();
 
-        // update stake amount
         totalStaked -= amount;
         userStakeAmount[msg.sender] -= amount;
 
-        // transfer ETH
         (bool success,) = msg.sender.call{ value: amount }("");
         if (!success) revert ETHTransferFailed();
 
@@ -95,15 +94,15 @@ contract Staking is IStaking, ReentrancyGuardTransient, Ownable {
     function earned(address account) public view override returns (uint256) {
         uint256 currentAccRewardPerShare = accRewardPerShare;
 
-        // calculate new reward
         if (block.number > lastUpdateBlock && totalStaked > 0) {
             uint256 blocksSinceLastUpdate = block.number - lastUpdateBlock;
             uint256 reward = blocksSinceLastUpdate * rnt.REWARD_PER_BLOCK();
-            currentAccRewardPerShare += (reward * PRECISION) / totalStaked;
+            uint256 rewardPerShare = (reward * PRECISION * PRECISION) / (totalStaked * PRECISION);
+            currentAccRewardPerShare += rewardPerShare;
         }
 
-        // calculate pending reward
-        uint256 pending = (userStakeAmount[account] * currentAccRewardPerShare) / PRECISION - userRewardDebt[account];
+        uint256 pending = (userStakeAmount[account] * currentAccRewardPerShare * PRECISION) / (PRECISION * PRECISION)
+            - userRewardDebt[account];
         return rewards[account] + pending;
     }
 
