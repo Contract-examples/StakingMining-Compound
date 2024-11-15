@@ -15,6 +15,7 @@ contract StakingTest is Test {
     address public bob;
 
     uint256 public constant INITIAL_ETH = 100 ether;
+    uint256 public constant PRECISION = 1e24;
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -32,7 +33,7 @@ contract StakingTest is Test {
     }
 
     function test_SingleUserStaking() public {
-        // set initial block
+        // set block number
         vm.roll(1);
 
         // Alice stake 10 ETH
@@ -43,7 +44,7 @@ contract StakingTest is Test {
         // advance 50 blocks
         vm.roll(51);
 
-        // check reward: 50 blocks * 10 RNT
+        // calculate expected reward: 50 blocks * 10 RNT/block = 500 RNT
         uint256 expectedReward = 50 * 10 ether;
         uint256 actualReward = staking.earned(alice);
 
@@ -59,7 +60,7 @@ contract StakingTest is Test {
     }
 
     function test_MultipleUsersStaking() public {
-        // set initial block
+        // set block number
         vm.roll(1);
 
         // Alice stake 10 ETH
@@ -73,13 +74,14 @@ contract StakingTest is Test {
         // advance 50 blocks
         vm.roll(51);
 
-        // check reward distribution
-        // total reward = 50 blocks * 10 RNT = 500 RNT
-        // Alice = 10/(10+5) = 2/3
-        // Bob = 5/(10+5) = 1/3
+        // calculate expected reward:
+        // total reward = 50 blocks * 10 RNT/block = 500 RNT
+        // Alice ratio = 10/(10+5) = 2/3
+        // Bob ratio = 5/(10+5) = 1/3
         uint256 totalReward = 50 * 10 ether;
-        uint256 aliceExpectedReward = (totalReward * 10) / 15; // Alice=2/3
-        uint256 bobExpectedReward = (totalReward * 5) / 15; // Bob=1/3
+        // multiply first, then divide to avoid precision loss
+        uint256 aliceExpectedReward = (totalReward * 10 * 1e18) / (15 * 1e18); // Alice=2/3
+        uint256 bobExpectedReward = (totalReward * 5 * 1e18) / (15 * 1e18); // Bob=1/3
 
         console.log("Total reward:", totalReward);
         console.log("Alice expected:", aliceExpectedReward);
@@ -90,7 +92,7 @@ contract StakingTest is Test {
         assertEq(staking.earned(alice), aliceExpectedReward, "Incorrect Alice reward");
         assertEq(staking.earned(bob), bobExpectedReward, "Incorrect Bob reward");
 
-        // both claim reward
+        // claim reward
         vm.prank(alice);
         staking.claim();
         vm.prank(bob);
@@ -101,7 +103,7 @@ contract StakingTest is Test {
     }
 
     function test_StakeUnstakeRewards() public {
-        // set initial block
+        // set block number
         vm.roll(1);
 
         // Alice stake 10 ETH
@@ -110,6 +112,9 @@ contract StakingTest is Test {
 
         // advance 25 blocks
         vm.roll(26);
+
+        // calculate first phase expected reward: 25 blocks * 10 RNT/block = 250 RNT
+        uint256 firstPhaseExpectedReward = 25 * 10 ether;
 
         // claim first phase reward
         vm.prank(alice);
@@ -126,9 +131,10 @@ contract StakingTest is Test {
         // advance 25 blocks
         vm.roll(51);
 
-        // calculate second phase expected reward
-        uint256 secondPhaseReward = (25 * 10 ether * 5) / 10; // 25 blocks * 10 RNT * (5/10)
-        console.log("Second phase expected reward:", secondPhaseReward);
+        // calculate second phase expected reward: 25 blocks * 10 RNT/block * (5/10) = 125 RNT
+        // multiply first, then divide to avoid precision loss
+        uint256 secondPhaseExpectedReward = (25 * 10 ether * 5 * 1e18) / (10 * 1e18);
+        console.log("Second phase expected reward:", secondPhaseExpectedReward);
 
         // claim second phase reward
         vm.prank(alice);
@@ -136,7 +142,7 @@ contract StakingTest is Test {
 
         // verify total reward
         uint256 totalReward = rnt.balanceOf(alice);
-        uint256 totalExpectedReward = firstPhaseReward + secondPhaseReward;
+        uint256 totalExpectedReward = firstPhaseExpectedReward + secondPhaseExpectedReward;
 
         console.log("\n=== Final Results ===");
         console.log("First phase reward:", firstPhaseReward);
