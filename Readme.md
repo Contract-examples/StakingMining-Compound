@@ -1,6 +1,11 @@
 # StakingMining Compound
 
 
+## Calculation
+```
+Final = Principal * (1 + rate)^time
+```
+
 ## Test
 ```
 forge test -vv
