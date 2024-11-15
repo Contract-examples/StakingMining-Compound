@@ -2,12 +2,12 @@
 pragma solidity ^0.8.28;
 
 import "../lib/forge-std/src/console.sol";
-import "../lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
+import "../lib/openzeppelin-contracts/contracts/utils/ReentrancyGuardTransient.sol";
 import "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 import "./RNT.sol";
 import "./interfaces/IStaking.sol";
 
-contract Staking is IStaking, ReentrancyGuard, Ownable {
+contract Staking is IStaking, ReentrancyGuardTransient, Ownable {
     // Custom errors
     error ZeroStake();
     error ZeroWithdraw();
